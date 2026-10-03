@@ -917,99 +917,43 @@ function openMatchPlayer(matchId) {
 
 
     /*
-     * TYPE-SAFE STREAM EXTRACTION.
-     *
      * ORIGINAL STREAM STRUCTURE PRESERVED.
      *
-     * Object => each key is a named server.
-     * String => the whole value is ONE single stream URL.
-     *
-     * null / undefined / empty / non-string values are ignored.
+     * These are objects containing server names.
      */
-    const pushStream = (
-        label,
-        streamUrl
-    ) => {
-
-        if (typeof streamUrl !== "string") {
-            return;
-        }
-
-
-        const safeUrl =
-            streamUrl.trim();
-
-
-        if (!safeUrl) {
-            return;
-        }
-
-
-        currentMatchStreams.push({
-
-            label:
-                label || `Server ${serverCounter}`,
-
-            url:
-                safeUrl,
-
-            drmKey:
-                drmKey
-
-        });
-
-
-        serverCounter++;
-
-    };
-
-
     [
         "stream_url_alpha",
         "stream_url_bravo",
         "stream_url"
     ].forEach(key => {
 
-        const streamValue =
-            match[key];
+        if (match[key]) {
 
-
-        if (!streamValue) {
-            return;
-        }
-
-
-        /*
-         * Object => named servers (real JSON names preserved).
-         */
-
-        if (typeof streamValue === "object") {
-
-            Object.keys(streamValue).forEach(
+            Object.keys(match[key]).forEach(
                 serverName => {
 
-                    pushStream(
-                        serverName,
-                        streamValue[serverName]
-                    );
+                    const streamUrl =
+                        match[key][serverName];
+
+
+                    if (streamUrl) {
+
+                        currentMatchStreams.push({
+
+                            label:
+                                `Server ${serverCounter++}`,
+
+                            url:
+                                streamUrl,
+
+                            drmKey:
+                                drmKey
+
+                        });
+
+                    }
 
                 }
-            );
-
-            return;
-
-        }
-
-
-        /*
-         * String => a single stream URL.
-         */
-
-        if (typeof streamValue === "string") {
-
-            pushStream(
-                "",
-                streamValue
             );
 
         }
@@ -1212,86 +1156,6 @@ function createCloseButton() {
 
 
 /* =========================================================
-   AUTOPLAY (NON-DESTRUCTIVE)
-
-   A rejected video.play() promise means the browser blocked
-   autoplay (policy / no user gesture).
-   It is NOT a dead stream and NOT a dead server.
-
-   So we never destroy the player and we never switch server
-   for it - the stream simply waits for the manual Play press.
-========================================================= */
-
-function attemptAutoplay(video) {
-
-    if (!video) {
-        return;
-    }
-
-
-    let playPromise =
-        null;
-
-
-    try {
-
-        playPromise =
-            video.play();
-
-    } catch (error) {
-
-        console.warn(
-            "[CricZone Player] Autoplay blocked - waiting for user interaction",
-            error
-        );
-
-        showAutoplayHint();
-
-        return;
-
-    }
-
-
-    if (
-        !playPromise ||
-        typeof playPromise.catch !== "function"
-    ) {
-        return;
-    }
-
-
-    playPromise.catch(error => {
-
-        console.warn(
-            "[CricZone Player] Autoplay blocked - waiting for user interaction",
-            error
-        );
-
-        showAutoplayHint();
-
-    });
-
-}
-
-
-/*
- * Small hint only.
- * Player, stream, server list and selected server stay as is.
- */
-
-function showAutoplayHint() {
-
-    if (art && art.notice) {
-
-        art.notice.show =
-            "Press Play to start";
-
-    }
-
-}
-
-
-/* =========================================================
    SERVER FALLBACK
 ========================================================= */
 
@@ -1323,13 +1187,7 @@ function tryNextServer(
 
 
         console.warn(
-            "[CricZone Player] Genuine stream failure - switching server",
-            reason
-        );
-
-
-        console.warn(
-            `[CricZone Player] Switching server: ${nextServer.label}`
+            `${reason}: Switching to ${nextServer.label}`
         );
 
 
@@ -1356,7 +1214,7 @@ function tryNextServer(
     } else {
 
         console.error(
-            "[CricZone Player] All available servers failed to stream."
+            "All available servers failed to stream."
         );
 
 
@@ -1506,26 +1364,6 @@ async function initArtPlayer(
                             Hls.isSupported()
                         ) {
 
-                            /*
-                             * Never attach a second HLS instance.
-                             */
-
-                            if (activeHls) {
-
-                                try {
-                                    activeHls.destroy();
-                                } catch (e) {
-                                    console.warn(
-                                        "[CricZone Player] Previous HLS destroy error:",
-                                        e
-                                    );
-                                }
-
-                                activeHls = null;
-
-                            }
-
-
                             const hls =
                                 new Hls({
 
@@ -1559,14 +1397,16 @@ async function initArtPlayer(
                                 Hls.Events.MANIFEST_PARSED,
                                 function() {
 
-                                    console.log(
-                                        "[CricZone Player] Stream loaded"
-                                    );
+                                    video.play()
+                                        .catch(
+                                            () => {
 
+                                                tryNextServer(
+                                                    "Autoplay blocked/failed"
+                                                );
 
-                                    attemptAutoplay(
-                                        video
-                                    );
+                                            }
+                                        );
 
 
                                     if (
@@ -1701,31 +1541,10 @@ async function initArtPlayer(
                         ) {
 
                             console.error(
-                                "[CricZone Player] Shaka Player is not supported."
+                                "Shaka Player is not supported."
                             );
 
                             return;
-
-                        }
-
-
-                        /*
-                         * Never create a second Shaka instance on
-                         * the same video element.
-                         */
-
-                        if (shakaPlayer) {
-
-                            try {
-                                await shakaPlayer.destroy();
-                            } catch (e) {
-                                console.warn(
-                                    "[CricZone Player] Previous Shaka destroy error:",
-                                    e
-                                );
-                            }
-
-                            shakaPlayer = null;
 
                         }
 
@@ -1833,14 +1652,16 @@ async function initArtPlayer(
                             );
 
 
-                            console.log(
-                                "[CricZone Player] Stream loaded"
-                            );
+                            video.play()
+                                .catch(
+                                    () => {
 
+                                        tryNextServer(
+                                            "Autoplay failed"
+                                        );
 
-                            attemptAutoplay(
-                                video
-                            );
+                                    }
+                                );
 
 
                             const tracks =
@@ -2023,31 +1844,13 @@ async function initArtPlayer(
         });
 
 
-    /*
-     * Artplayer emits "error" on every one of its own
-     * reconnect attempts, so a single error event is NOT
-     * proof of a dead server.
-     *
-     * Genuine failures are still handled by:
-     *   player.load() rejection
-     *   unrecoverable Shaka errors
-     *   fatal HLS errors
-     */
-
     art.on(
         "error",
-        (event, reconnectCount) => {
+        () => {
 
-            if (
-                reconnectCount === 1 ||
-                reconnectCount == null
-            ) {
-
-                console.warn(
-                    "[CricZone Player] Artplayer error (own reconnect) - keeping current server"
-                );
-
-            }
+            tryNextServer(
+                "Artplayer Playback Error"
+            );
 
         }
     );
