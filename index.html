@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Criczone - Live Sports & Streaming Network</title>
+
+    <!-- Streaming Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.3.5/shaka-player.compiled.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/artplayer/dist/artplayer.js"></script>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap"
+        rel="stylesheet"
+    >
+
+    <!-- Font Awesome -->
+    <link
+        rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    >
+
+    <!-- Main CSS -->
+    <link rel="stylesheet" href="./style.css">
+</head>
+
+<body class="dark-mode">
+
+    <!-- =====================================================
+         NAVBAR
+    ====================================================== -->
+
+    <header class="navbar">
+
+        <div class="nav-container">
+
+            <div class="nav-left">
+
+                <!-- Logo -->
+                <div
+                    class="brand-logo"
+                    onclick="showHome()"
+                    title="Criczone Home"
+                >
+                    <span class="logo-accent">
+                        <i class="fa-solid fa-play"></i>
+                    </span>
+
+                    <span class="brand-text">
+                        Criczone
+                    </span>
+                </div>
+
+
+                <!-- Navigation -->
+                <nav class="nav-menu">
+
+                    <a
+                        href="#"
+                        class="active"
+                        onclick="showHome(); return false;"
+                    >
+                        HOME
+                    </a>
+
+                    <a href="#live-section">
+                        LIVE
+                    </a>
+
+                    <a href="#tournaments-section">
+                        EVENTS
+                    </a>
+
+                    <a href="#schedule-section">
+                        SCHEDULE
+                    </a>
+
+                </nav>
+
+            </div>
+
+
+            <!-- Right Navigation -->
+            <div
+                class="nav-actions"
+                id="nav-actions-container"
+            >
+
+                <button
+                    class="search-btn"
+                    type="button"
+                    aria-label="Search"
+                >
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                </button>
+
+                <button
+                    class="nav-telegram-btn"
+                    type="button"
+                    onclick="openTelegramModal()"
+                >
+                    <i class="fa-brands fa-telegram"></i>
+                    <span>Telegram</span>
+                </button>
+
+            </div>
+
+        </div>
+
+    </header>
+
+
+    <!-- =====================================================
+         MAIN
+    ====================================================== -->
+
+    <main class="container">
+
+        <!-- =================================================
+             HOME
+        ================================================== -->
+
+        <div id="home-section">
+
+
+            <!-- =================================================
+                 HERO
+            ================================================== -->
+
+            <section class="hero-section">
+
+                <div class="hero-content">
+
+                    <div class="hero-tag">
+                        <span class="hero-live-dot"></span>
+                        LIVE SPORTS
+                    </div>
+
+                    <h1>
+                        Watch Cricket.
+                        <br>
+                        <span>Live &amp; Uninterrupted.</span>
+                    </h1>
+
+                    <p>
+                        Follow live matches, upcoming events and the
+                        complete cricket schedule on Criczone.
+                    </p>
+
+                    <div class="hero-actions">
+
+                        <a
+                            href="#live-section"
+                            class="hero-primary-btn"
+                        >
+                            <i class="fa-solid fa-play"></i>
+                            WATCH LIVE
+                        </a>
+
+                        <button
+                            type="button"
+                            class="hero-secondary-btn"
+                            onclick="openTelegramModal()"
+                        >
+                            <i class="fa-brands fa-telegram"></i>
+                            JOIN TELEGRAM
+                        </button>
+
+                    </div>
+
+                </div>
+
+
+                <div class="hero-decoration">
+
+                    <div class="hero-circle hero-circle-one"></div>
+                    <div class="hero-circle hero-circle-two"></div>
+
+                    <div class="hero-ball">
+                        <i class="fa-solid fa-baseball"></i>
+                    </div>
+
+                </div>
+
+            </section>
+
+
+            <!-- =================================================
+                 LIVE MATCHES
+            ================================================== -->
+
+            <section
+                id="live-section"
+                class="content-section"
+            >
+
+                <div class="section-header">
+
+                    <div class="section-heading-left">
+
+                        <div class="section-label live-label">
+                            <span class="live-dot"></span>
+                            LIVE NOW
+                        </div>
+
+                        <h2>
+                            Live Matches
+                        </h2>
+
+                        <p>
+                            Matches currently available to watch
+                        </p>
+
+                    </div>
+
+
+                    <div class="section-count live-count">
+                        <span id="live-count">0</span>
+                        LIVE
+                    </div>
+
+                </div>
+
+
+                <div
+                    id="live-matches-grid"
+                    class="matches-grid"
+                >
+
+                    <div class="loading-card">
+                        <div class="loading-spinner"></div>
+                        <span>Loading live matches...</span>
+                    </div>
+
+                </div>
+
+            </section>
+
+
+
+            <!-- =================================================
+                 UPCOMING / EVENTS
+            ================================================== -->
+
+            <section
+                id="tournaments-section"
+                class="content-section"
+            >
+
+                <div class="section-header">
+
+                    <div class="section-heading-left">
+
+                        <div class="section-label upcoming-label">
+                            <i class="fa-regular fa-clock"></i>
+                            UPCOMING
+                        </div>
+
+                        <h2>
+                            Upcoming Matches
+                        </h2>
+
+                        <p>
+                            Matches that will be available when they go live
+                        </p>
+
+                    </div>
+
+
+                    <div class="section-count upcoming-count">
+                        <span id="upcoming-count">0</span>
+                        EVENTS
+                    </div>
+
+                </div>
+
+
+                <div
+                    id="upcoming-matches-grid"
+                    class="matches-grid"
+                >
+
+                    <div class="loading-card">
+                        <div class="loading-spinner"></div>
+                        <span>Loading upcoming matches...</span>
+                    </div>
+
+                </div>
+
+            </section>
+
+
+
+            <!-- =================================================
+                 SCHEDULE
+            ================================================== -->
+
+            <section
+                id="schedule-section"
+                class="content-section schedule-section"
+            >
+
+                <div class="section-header">
+
+                    <div class="section-heading-left">
+
+                        <div class="section-label schedule-label">
+                            <i class="fa-regular fa-calendar"></i>
+                            SCHEDULE
+                        </div>
+
+                        <h2>
+                            Match Schedule
+                        </h2>
+
+                        <p>
+                            Keep track of upcoming cricket action
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <div
+                    id="schedule-matches-grid"
+                    class="schedule-grid"
+                >
+
+                    <div class="loading-card">
+                        <div class="loading-spinner"></div>
+                        <span>Loading schedule...</span>
+                    </div>
+
+                </div>
+
+            </section>
+
+
+
+            <!-- =================================================
+                 COMMUNITY BANNER
+            ================================================== -->
+
+            <section class="community-banner home-community">
+
+                <div class="community-glow"></div>
+
+                <div class="comm-icon">
+                    <i class="fa-brands fa-telegram"></i>
+                </div>
+
+
+                <div class="comm-text">
+
+                    <span class="community-small-title">
+                        CRICZONE COMMUNITY
+                    </span>
+
+                    <h3>
+                        Stay connected.
+                    </h3>
+
+                    <p>
+                        Get live match updates, stream notifications
+                        and important announcements.
+                    </p>
+
+                </div>
+
+
+                <button
+                    type="button"
+                    onclick="openTelegramModal()"
+                    class="join-btn"
+                >
+                    JOIN TELEGRAM
+                    <i class="fa-solid fa-arrow-right"></i>
+                </button>
+
+            </section>
+
+        </div>
+
+
+
+        <!-- =====================================================
+             MATCH DETAILS
+        ====================================================== -->
+
+        <section
+            id="match-details-section"
+            style="display:none;"
+        >
+
+            <div class="details-back-row">
+
+                <button
+                    type="button"
+                    class="back-btn"
+                    onclick="showHome()"
+                >
+                    <i class="fa-solid fa-arrow-left"></i>
+                    BACK
+                </button>
+
+            </div>
+
+
+            <div class="match-details-card">
+
+                <div class="detail-banner">
+
+                    <img
+                        id="detail-banner-img"
+                        src=""
+                        alt="Match"
+                    >
+
+                    <div
+                        id="detail-status-badge"
+                        class="detail-status-badge"
+                    >
+                        UPCOMING
+                    </div>
+
+                </div>
+
+
+                <div class="detail-content">
+
+                    <div class="detail-main-info">
+
+                        <div class="detail-label">
+                            CRICZONE MATCH CENTER
+                        </div>
+
+                        <h1 id="detail-match-title">
+                            Match Title
+                        </h1>
+
+                        <p id="detail-match-sub">
+                            Match information
+                        </p>
+
+                    </div>
+
+
+                    <div class="detail-action">
+
+                        <button
+                            id="detail-watch-btn"
+                            class="watch-now-btn"
+                            type="button"
+                        >
+                            <i class="fa-solid fa-play"></i>
+                            WATCH LIVE
+                        </button>
+
+                    </div>
+
+                </div>
+
+
+                <div class="access-subtext">
+
+                    <span class="sub-tag">
+                        CRICZONE ACCESS
+                    </span>
+
+                    <h3>
+                        Your match. Your screen.
+                    </h3>
+
+                    <p>
+                        Live matches will become available automatically
+                        when their status changes to LIVE.
+                    </p>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+
+        <!-- =====================================================
+             PLAYER
+        ====================================================== -->
+
+        <section
+            id="player-section"
+            style="display:none;"
+        >
+
+            <div class="player-topbar">
+
+                <button
+                    type="button"
+                    class="back-btn"
+                    onclick="showHome()"
+                >
+                    <i class="fa-solid fa-arrow-left"></i>
+                    BACK
+                </button>
+
+
+                <div class="player-live-status">
+
+                    <span class="live-dot"></span>
+
+                    <span>
+                        LIVE
+                    </span>
+
+                </div>
+
+            </div>
+
+
+            <div class="player-wrapper">
+
+                <div
+                    id="artplayer"
+                    class="artplayer-app"
+                ></div>
+
+            </div>
+
+
+            <div class="player-info-row">
+
+                <div class="title-meta">
+
+                    <div class="player-title-status">
+                        <span class="live-dot"></span>
+                        LIVE NOW
+                    </div>
+
+                    <h2 id="active-match-title">
+                        Match Title
+                    </h2>
+
+                    <p id="active-match-sub">
+                        CRICZONE HD NETWORK
+                    </p>
+
+                </div>
+
+
+                <button
+                    type="button"
+                    class="share-btn"
+                    onclick="copyStreamLink()"
+                >
+                    <i class="fa-solid fa-share-nodes"></i>
+                    SHARE STREAM
+                </button>
+
+            </div>
+
+
+            <!-- Player Community -->
+            <div class="community-banner player-community">
+
+                <div class="comm-icon">
+                    <i class="fa-brands fa-telegram"></i>
+                </div>
+
+                <div class="comm-text">
+
+                    <span class="community-small-title">
+                        STAY CONNECTED
+                    </span>
+
+                    <h3>
+                        Never miss a match.
+                    </h3>
+
+                    <p>
+                        Join our Telegram community for live updates
+                        and stream notifications.
+                    </p>
+
+                </div>
+
+                <button
+                    type="button"
+                    onclick="openTelegramModal()"
+                    class="join-btn"
+                >
+                    JOIN COMMUNITY
+                    <i class="fa-solid fa-arrow-right"></i>
+                </button>
+
+            </div>
+
+        </section>
+
+    </main>
+
+
+
+    <!-- =====================================================
+         TELEGRAM MODAL
+    ====================================================== -->
+
+    <div
+        id="telegram-modal"
+        class="modal-overlay"
+        aria-hidden="true"
+    >
+
+        <div
+            class="modal-box"
+            role="dialog"
+            aria-modal="true"
+        >
+
+            <button
+                type="button"
+                class="modal-close"
+                onclick="closeTelegramModal()"
+                aria-label="Close"
+            >
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+
+
+            <div class="modal-icon">
+
+                <i class="fa-brands fa-telegram"></i>
+
+            </div>
+
+
+            <span class="modal-kicker">
+                CRICZONE COMMUNITY
+            </span>
+
+
+            <h2>
+                Join Our Telegram
+            </h2>
+
+
+            <p>
+                Get live match updates, stream notifications,
+                schedules and important Criczone announcements
+                directly on Telegram.
+            </p>
+
+
+            <a
+                href="https://t.me/+MueCDjlpoS8yNmJl"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="modal-primary-btn"
+            >
+                <i class="fa-brands fa-telegram"></i>
+                JOIN TELEGRAM
+                <i class="fa-solid fa-arrow-right"></i>
+            </a>
+
+
+            <button
+                type="button"
+                class="modal-secondary-btn"
+                onclick="closeTelegramModal()"
+            >
+                MAYBE LATER
+            </button>
+
+        </div>
+
+    </div>
+
+
+
+    <!-- =====================================================
+         SECOND TELEGRAM MODAL
+    ====================================================== -->
+
+    <div
+        id="telegram-modal-alt"
+        class="modal-overlay"
+        aria-hidden="true"
+    >
+
+        <div
+            class="modal-box"
+            role="dialog"
+            aria-modal="true"
+        >
+
+            <button
+                type="button"
+                class="modal-close"
+                onclick="closeTelegramModalAlt()"
+                aria-label="Close"
+            >
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+
+
+            <div class="modal-icon">
+
+                <i class="fa-brands fa-telegram"></i>
+
+            </div>
+
+
+            <span class="modal-kicker">
+                CRICZONE
+            </span>
+
+
+            <h2>
+                Don't Miss The Action
+            </h2>
+
+
+            <p>
+                Join the Criczone Telegram community for
+                match alerts and live-stream notifications.
+            </p>
+
+
+            <a
+                href="https://t.me/+MueCDjlpoS8yNmJl"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="modal-primary-btn"
+            >
+                <i class="fa-brands fa-telegram"></i>
+                JOIN NOW
+                <i class="fa-solid fa-arrow-right"></i>
+            </a>
+
+
+            <button
+                type="button"
+                class="modal-secondary-btn"
+                onclick="closeTelegramModalAlt()"
+            >
+                REMIND ME LATER
+            </button>
+
+        </div>
+
+    </div>
+
+
+
+    <!-- =====================================================
+         FOOTER
+    ====================================================== -->
+
+    <footer class="site-footer">
+
+        <div class="footer-inner">
+
+            <div class="footer-brand">
+
+                <div class="brand-logo footer-logo">
+
+                    <span class="logo-accent">
+                        <i class="fa-solid fa-play"></i>
+                    </span>
+
+                    Criczone
+
+                </div>
+
+                <p>
+                    Live sports. One destination.
+                </p>
+
+            </div>
+
+
+            <div class="footer-links">
+
+                <a href="#live-section">
+                    Live
+                </a>
+
+                <a href="#tournaments-section">
+                    Events
+                </a>
+
+                <a href="#schedule-section">
+                    Schedule
+                </a>
+
+                <button
+                    type="button"
+                    onclick="openTelegramModal()"
+                >
+                    Telegram
+                </button>
+
+            </div>
+
+
+            <div class="footer-copy">
+                © 2026 Criczone. All rights reserved.
+            </div>
+
+        </div>
+
+    </footer>
+
+
+
+    <!-- Main JavaScript -->
+    <script src="./script.js"></script>
+
+</body>
+</html>
