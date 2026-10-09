@@ -27,6 +27,14 @@
 
     <!-- Main CSS -->
     <link rel="stylesheet" href="./style.css">
+
+<meta name="theme-color" content="#080808">
+<meta name="description" content="CricZone live sports and streaming network">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" href="./icon-512.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="./icon-512.svg">
 </head>
 
 <body class="dark-mode">
@@ -822,5 +830,7 @@
     <!-- Main JavaScript -->
     <script src="./script.js"></script>
 
+
+<script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./service-worker.js",{scope:"./"}).catch(e=>console.warn("CricZone PWA:",e)));}</script>
 </body>
 </html>
