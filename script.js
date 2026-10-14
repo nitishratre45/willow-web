@@ -3,7 +3,7 @@ const JSON_URL = "https://raw.githubusercontent.com/srhady/willow-event/refs/hea
 let globalMatches = [];
 let art = null;
 let activeHls = null;
-let shakaPlayer = null;
+let dashPlayer = null;
 
 let currentMatchStreams = [];
 let currentServerIndex = 0;
@@ -25,10 +25,6 @@ const MATCH_REFRESH_TIME = 30000;
 ========================================================= */
 
 document.addEventListener("DOMContentLoaded", () => {
-
-    if (window.shaka) {
-        shaka.polyfill.installAll();
-    }
 
     fetchMatches();
 
@@ -1200,11 +1196,10 @@ function handleNetworkReconnect() {
         }
     }
 
-    if (shakaPlayer) {
+    if (dashPlayer) {
         try {
-            if (shakaPlayer.retryStreaming(0.5)) {
-                return;
-            }
+            dashPlayer.attachSource(dashPlayer.getSource());
+            return;
         } catch (error) {
             console.warn("[CricZone Player] DASH reconnect attempt failed.", error);
         }
@@ -1373,18 +1368,18 @@ async function destroyPlayers() {
     }
 
 
-    if (shakaPlayer) {
+    if (dashPlayer) {
 
         try {
-            await shakaPlayer.destroy();
+            dashPlayer.reset();
         } catch (e) {
             console.warn(
-                "Shaka destroy error:",
+                "DASH.js destroy error:",
                 e
             );
         }
 
-        shakaPlayer = null;
+        dashPlayer = null;
 
     }
 
@@ -1686,337 +1681,76 @@ async function initArtPlayer(
 
 
                 /* =================================================
-                   MPEG-DASH / SHAKA
+                   MPEG-DASH / DASH.js
                 ================================================== */
 
                 mpd:
                     async function(video, streamUrl) {
-
-                        if (
-                            !window.shaka ||
-                            !shaka.Player.isBrowserSupported()
-                        ) {
-
-                            console.error(
-                                "Shaka Player is not supported."
-                            );
-
+                        if (!window.dashjs || !dashjs.MediaPlayer) {
+                            console.error("[CricZone Player] DASH.js failed to load.");
+                            tryNextServer("DASH.js unavailable");
                             return;
-
                         }
 
+                        const player = dashjs.MediaPlayer().create();
+                        dashPlayer = player;
 
-                        const player =
-                            new shaka.Player(
-                                video
-                            );
+                        // Preserve the feed's existing ClearKey DRM mapping.
+                        if (drmKey && drmKey.includes(":")) {
+                            const [keyId, key] = drmKey.split(":");
+                            player.setProtectionData({
+                                "org.w3.clearkey": {
+                                    clearkeys: { [keyId]: key }
+                                }
+                            });
+                        }
 
-
-                        shakaPlayer =
-                            player;
-
-
-                        player.configure({
-
+                        player.updateSettings({
                             streaming: {
-
-                                // A larger forward buffer helps recover from short bandwidth dips.
-                                rebufferingGoal:
-                                    5,
-
-                                bufferingGoal:
-                                    30,
-
-                                bufferBehind:
-                                    30,
-
-                                retryParameters: {
-
-                                    maxAttempts:
-                                        5,
-
-                                    baseDelay:
-                                        1000,
-
-                                    backoffFactor:
-                                        2,
-
-                                    fuzzFactor:
-                                        0.5
-
+                                buffer: {
+                                    stableBufferTime: 12,
+                                    bufferTimeAtTopQuality: 18,
+                                    bufferTimeAtTopQualityLongForm: 18
                                 },
-
-                                lowLatencyMode:
-                                    false,
-
-                                autoLowLatencyMode:
-                                    false
-
+                                retryAttempts: {
+                                    MPD: 4,
+                                    MediaSegment: 5,
+                                    InitializationSegment: 4
+                                },
+                                retryIntervals: {
+                                    MPD: 1000,
+                                    MediaSegment: 1000,
+                                    InitializationSegment: 1000
+                                }
                             }
-
                         });
 
-
-                        /*
-                         * Original ClearKey logic preserved.
-                         */
-                        if (
-                            drmKey &&
-                            drmKey.includes(":")
-                        ) {
-
-                            const [
-                                keyId,
-                                key
-                            ] =
-                                drmKey.split(":");
-
-
-                            const clearkeys =
-                                {};
-
-
-                            clearkeys[keyId] =
-                                key;
-
-
-                            player.configure({
-
-                                drm: {
-
-                                    clearKeys:
-                                        clearkeys
-
-                                }
-
-                            });
-
-                        }
-
-
-                        let shakaLoadComplete = false;
-                        let shakaRecoveryAttempts = 0;
-
-                        player.addEventListener(
-                            "error",
-                            event => {
-
-                                // A failed initial manifest/DRM load is handled by player.load() below.
-                                if (!shakaLoadComplete) {
+                        let loadComplete = false;
+                        let recoveryAttempts = 0;
+                        player.on(dashjs.MediaPlayer.events.ERROR, event => {
+                            if (!loadComplete) return;
+                            if (recoveryAttempts < 1) {
+                                recoveryAttempts++;
+                                if (art && art.notice) art.notice.show = "DASH stream interrupted — reconnecting…";
+                                console.warn("[CricZone Player] DASH.js stream error; retrying current source.", event);
+                                try {
+                                    player.attachSource(streamUrl);
                                     return;
+                                } catch (error) {
+                                    console.warn("[CricZone Player] DASH.js retry failed.", error);
                                 }
-
-                                // Give transient DASH/network failures a chance to recover in-place.
-                                if (shakaRecoveryAttempts < 2) {
-                                    shakaRecoveryAttempts++;
-                                    if (art && art.notice) {
-                                        art.notice.show = "Stream interrupted — reconnecting…";
-                                    }
-
-                                    console.warn("[CricZone Player] DASH recovery attempt", shakaRecoveryAttempts, event.detail || event);
-
-                                    // Shaka retryStreaming() does not return a success boolean.
-                                    // Return after requesting recovery; do not switch servers immediately.
-                                    try {
-                                        player.retryStreaming(0.5);
-                                        return;
-                                    } catch (retryError) {
-                                        console.warn("[CricZone Player] DASH in-place retry failed.", retryError);
-                                    }
-                                }
-
-                                tryNextServer(
-                                    "Shaka Player Streaming Error"
-                                );
-
                             }
-                        );
-
+                            tryNextServer("DASH.js Streaming Error");
+                        });
 
                         try {
-
-                            await player.load(
-                                streamUrl
-                            );
-
-                            shakaLoadComplete = true;
-
+                            player.initialize(video, streamUrl, true);
+                            loadComplete = true;
                             attemptAutoplay(video);
-
-
-                            const tracks =
-                                player.getVariantTracks();
-
-
-                            if (
-                                tracks &&
-                                tracks.length > 0
-                            ) {
-
-                                const uniqueTracks =
-                                    [];
-
-
-                                const seenHeights =
-                                    new Set();
-
-
-                                tracks.forEach(
-                                    track => {
-
-                                        if (
-                                            track.height &&
-                                            !seenHeights.has(
-                                                track.height
-                                            )
-                                        ) {
-
-                                            seenHeights.add(
-                                                track.height
-                                            );
-
-
-                                            uniqueTracks.push(
-                                                track
-                                            );
-
-                                        }
-
-                                    }
-                                );
-
-
-                                uniqueTracks.sort(
-                                    (a, b) =>
-                                        b.height -
-                                        a.height
-                                );
-
-
-                                const qualityOptions =
-                                    uniqueTracks.map(
-                                        track => ({
-
-                                            html:
-                                                `${track.height}p`,
-
-                                            id:
-                                                track.id
-
-                                        })
-                                    );
-
-
-                                qualityOptions.unshift({
-
-                                    html:
-                                        "Auto",
-
-                                    id:
-                                        -1
-
-                                });
-
-
-                                if (art) {
-
-                                    art.setting.add({
-
-                                        html:
-                                            "Quality",
-
-                                        name:
-                                            "quality",
-
-                                        tooltip:
-                                            "Auto",
-
-                                        selector:
-                                            qualityOptions,
-
-                                        onSelect:
-                                            function(item) {
-
-                                                if (
-                                                    item.id === -1
-                                                ) {
-
-                                                    player.configure({
-
-                                                        abr: {
-
-                                                            enabled:
-                                                                true
-
-                                                        }
-
-                                                    });
-
-                                                }
-
-                                                else {
-
-                                                    player.configure({
-
-                                                        abr: {
-
-                                                            enabled:
-                                                                false
-
-                                                        }
-
-                                                    });
-
-
-                                                    const selectedTrack =
-                                                        tracks.find(
-                                                            t =>
-                                                                t.id ===
-                                                                item.id
-                                                        );
-
-
-                                                    if (
-                                                        selectedTrack
-                                                    ) {
-
-                                                        player.selectVariantTrack(
-                                                            selectedTrack,
-                                                            true
-                                                        );
-
-                                                    }
-
-                                                }
-
-
-                                                return item.html;
-
-                                            }
-
-                                    });
-
-                                }
-
-                            }
-
-
+                        } catch (error) {
+                            console.error("[CricZone Player] DASH.js initialization failed.", error);
+                            tryNextServer("DASH.js Load / DRM Error");
                         }
-
-                        catch (error) {
-
-                            console.error(
-                                "Shaka load error:",
-                                error
-                            );
-
-
-                            tryNextServer(
-                                "Shaka DRM / Load Error"
-                            );
-
-                        }
-
                     }
 
             }
@@ -2074,11 +1808,11 @@ async function initArtPlayer(
                     } catch (error) {
                         console.warn("[CricZone Player] HLS stall recovery failed.", error);
                     }
-                } else if (shakaPlayer) {
+                } else if (dashPlayer) {
                     try {
-                        shakaPlayer.retryStreaming(0.5);
+                        dashPlayer.attachSource(dashPlayer.getSource());
                     } catch (error) {
-                        console.warn("[CricZone Player] Shaka stall recovery failed.", error);
+                        console.warn("[CricZone Player] DASH.js stall recovery failed.", error);
                     }
                 }
                 return;
