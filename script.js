@@ -15,6 +15,7 @@ let playbackWatchdog = null;
 let lastPlaybackTime = 0;
 let lastPlaybackProgressAt = 0;
 let watchdogRecoveryAttempts = 0;
+let watchdogRecoveryStartedAt = 0;
 
 const MATCH_REFRESH_TIME = 30000;
 
@@ -1338,6 +1339,7 @@ async function destroyPlayers() {
     lastPlaybackTime = 0;
     lastPlaybackProgressAt = 0;
     watchdogRecoveryAttempts = 0;
+    watchdogRecoveryStartedAt = 0;
 
     if (art) {
 
@@ -1473,9 +1475,18 @@ async function initArtPlayer(
                                     enableWorker:
                                         true,
 
-                                    // Prefer a stable live buffer over ultra-low latency.
+                                    // Keep the live edge closer so startup does not sit far behind live.
                                     lowLatencyMode:
-                                        false,
+                                        true,
+
+                                    liveSyncDurationCount:
+                                        2,
+
+                                    liveMaxLatencyDurationCount:
+                                        4,
+
+                                    maxLiveSyncPlaybackRate:
+                                        1.2,
 
                                     backBufferLength:
                                         60,
@@ -2041,41 +2052,43 @@ async function initArtPlayer(
                 lastPlaybackTime = time;
                 lastPlaybackProgressAt = now;
                 watchdogRecoveryAttempts = 0;
+                watchdogRecoveryStartedAt = 0;
                 return;
             }
 
-            if (now - lastPlaybackProgressAt < 15000 || isSwitchingServer) {
+            // Detect a genuine frozen picture quickly, but avoid treating startup buffering as a stall.
+            if (now - lastPlaybackProgressAt < 8000 || isSwitchingServer) {
                 return;
             }
 
-            lastPlaybackProgressAt = now;
-            watchdogRecoveryAttempts++;
-            if (art && art.notice) {
-                art.notice.show = "Live playback stalled — reconnecting…";
-            }
+            if (watchdogRecoveryAttempts === 0) {
+                watchdogRecoveryAttempts = 1;
+                watchdogRecoveryStartedAt = now;
+                if (art && art.notice) {
+                    art.notice.show = "Live paused — reconnecting…";
+                }
 
-            if (watchdogRecoveryAttempts === 1) {
                 if (activeHls) {
                     try {
-                        activeHls.startLoad();
-                        return;
+                        activeHls.startLoad(-1);
                     } catch (error) {
                         console.warn("[CricZone Player] HLS stall recovery failed.", error);
                     }
-                }
-
-                if (shakaPlayer) {
+                } else if (shakaPlayer) {
                     try {
                         shakaPlayer.retryStreaming(0.5);
-                        return;
                     } catch (error) {
                         console.warn("[CricZone Player] Shaka stall recovery failed.", error);
                     }
                 }
+                return;
             }
 
-            tryNextServer("Live playback stalled for 15+ seconds");
-        }, 5000);
+            // If recovery made no progress within 5 seconds, switch server immediately.
+            if (now - watchdogRecoveryStartedAt >= 5000) {
+                tryNextServer("Live playback stalled after reconnect attempt");
+            }
+        }, 2500);
     }
 
 }
