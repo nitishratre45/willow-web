@@ -41,6 +41,14 @@ document.addEventListener("DOMContentLoaded", () => {
     setupTelegramEvents();
     setupSearch();
 
+    // Resume stream loading when the browser regains network connectivity.
+    window.addEventListener("online", handleNetworkReconnect);
+    window.addEventListener("offline", () => {
+        if (art && art.notice) {
+            art.notice.show = "Network offline — waiting to reconnect…";
+        }
+    });
+
 });
 
 
@@ -1166,6 +1174,41 @@ function createCloseButton() {
    SERVER FALLBACK
 ========================================================= */
 
+function handleNetworkReconnect() {
+    if (!document.getElementById("player-section") ||
+        document.getElementById("player-section").style.display === "none") {
+        return;
+    }
+
+    console.info("[CricZone Player] Network restored; attempting stream recovery.");
+
+    if (art && art.notice) {
+        art.notice.show = "Network restored — reconnecting…";
+    }
+
+    if (activeHls) {
+        try {
+            activeHls.startLoad();
+            return;
+        } catch (error) {
+            console.warn("[CricZone Player] HLS reconnect attempt failed.", error);
+        }
+    }
+
+    if (shakaPlayer) {
+        try {
+            if (shakaPlayer.retryStreaming(0.5)) {
+                return;
+            }
+        } catch (error) {
+            console.warn("[CricZone Player] DASH reconnect attempt failed.", error);
+        }
+    }
+
+    // Native HLS and streams which cannot resume are handled by their normal
+    // media error callbacks, which can move to the next configured server.
+}
+
 function tryNextServer(
     reason = "Playback Error"
 ) {
@@ -1220,6 +1263,9 @@ function tryNextServer(
 
     } else {
 
+        // Permit a later online event or a manual server selection to recover.
+        isSwitchingServer = false;
+
         console.error(
             "All available servers failed to stream."
         );
@@ -1228,7 +1274,7 @@ function tryNextServer(
         if (art) {
 
             art.notice.show =
-                "All servers are offline or unreachable.";
+                "All servers failed. Waiting for connection or choose another server.";
 
         }
 
@@ -1548,19 +1594,43 @@ async function initArtPlayer(
                             );
 
 
+                            let networkRecoveries = 0;
+                            let mediaRecoveries = 0;
+
                             hls.on(
                                 Hls.Events.ERROR,
                                 function(event, data) {
 
-                                    if (
-                                        data.fatal
-                                    ) {
-
-                                        tryNextServer(
-                                            `HLS Fatal Error (${data.type})`
-                                        );
-
+                                    if (!data.fatal) {
+                                        return;
                                     }
+
+                                    // Recover this HLS instance before abandoning its server.
+                                    if (data.type === Hls.ErrorTypes.NETWORK_ERROR &&
+                                        networkRecoveries < 2) {
+                                        networkRecoveries++;
+                                        if (art && art.notice) {
+                                            art.notice.show = "Connection interrupted — reconnecting…";
+                                        }
+                                        console.warn("[CricZone Player] HLS network recovery", networkRecoveries, data.details);
+                                        hls.startLoad();
+                                        return;
+                                    }
+
+                                    if (data.type === Hls.ErrorTypes.MEDIA_ERROR &&
+                                        mediaRecoveries < 1) {
+                                        mediaRecoveries++;
+                                        if (art && art.notice) {
+                                            art.notice.show = "Recovering video decoder…";
+                                        }
+                                        console.warn("[CricZone Player] Recovering HLS media error.", data.details);
+                                        hls.recoverMediaError();
+                                        return;
+                                    }
+
+                                    tryNextServer(
+                                        `HLS Fatal Error (${data.type})`
+                                    );
 
                                 }
                             );
@@ -1701,9 +1771,32 @@ async function initArtPlayer(
                         }
 
 
+                        let shakaLoadComplete = false;
+                        let shakaRecoveryAttempts = 0;
+
                         player.addEventListener(
                             "error",
-                            () => {
+                            event => {
+
+                                // A failed initial manifest/DRM load is handled by player.load() below.
+                                if (!shakaLoadComplete) {
+                                    return;
+                                }
+
+                                // Give transient DASH/network failures a chance to recover in-place.
+                                if (shakaRecoveryAttempts < 2) {
+                                    shakaRecoveryAttempts++;
+                                    if (art && art.notice) {
+                                        art.notice.show = "Stream interrupted — reconnecting…";
+                                    }
+
+                                    const retryStarted = player.retryStreaming(0.5);
+                                    console.warn("[CricZone Player] DASH recovery attempt", shakaRecoveryAttempts, event.detail || event);
+
+                                    if (retryStarted) {
+                                        return;
+                                    }
+                                }
 
                                 tryNextServer(
                                     "Shaka Player Streaming Error"
@@ -1719,6 +1812,7 @@ async function initArtPlayer(
                                 streamUrl
                             );
 
+                            shakaLoadComplete = true;
 
                             attemptAutoplay(video);
 
