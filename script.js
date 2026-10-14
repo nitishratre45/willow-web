@@ -917,47 +917,54 @@ function openMatchPlayer(matchId) {
 
 
     /*
-     * ORIGINAL STREAM STRUCTURE PRESERVED.
-     *
-     * These are objects containing server names.
+     * Accept both supported JSON shapes:
+     * - object: { "Server A": "https://..." }
+     * - string: "https://..." (one stream URL)
+     * Keep real server names when supplied by the data source.
      */
+    const pushStream = (label, streamUrl) => {
+        if (typeof streamUrl !== "string") {
+            return;
+        }
+
+        const safeUrl = streamUrl.trim();
+        if (!safeUrl) {
+            return;
+        }
+
+        currentMatchStreams.push({
+            label: label || `Server ${serverCounter}`,
+            url: safeUrl,
+            drmKey
+        });
+
+        serverCounter++;
+    };
+
     [
         "stream_url_alpha",
         "stream_url_bravo",
         "stream_url"
     ].forEach(key => {
+        const streamValue = match[key];
 
-        if (match[key]) {
-
-            Object.keys(match[key]).forEach(
-                serverName => {
-
-                    const streamUrl =
-                        match[key][serverName];
-
-
-                    if (streamUrl) {
-
-                        currentMatchStreams.push({
-
-                            label:
-                                `Server ${serverCounter++}`,
-
-                            url:
-                                streamUrl,
-
-                            drmKey:
-                                drmKey
-
-                        });
-
-                    }
-
-                }
-            );
-
+        if (!streamValue) {
+            return;
         }
 
+        if (typeof streamValue === "string") {
+            pushStream("", streamValue);
+            return;
+        }
+
+        if (
+            typeof streamValue === "object" &&
+            !Array.isArray(streamValue)
+        ) {
+            Object.entries(streamValue).forEach(([serverName, streamUrl]) => {
+                pushStream(serverName, streamUrl);
+            });
+        }
     });
 
 
@@ -1231,6 +1238,44 @@ function tryNextServer(
 
 
 /* =========================================================
+   AUTOPLAY (NON-DESTRUCTIVE)
+   Browser autoplay rejection does not prove the stream is broken.
+   Keep the active stream/server and wait for a manual Play action.
+========================================================= */
+
+function attemptAutoplay(video) {
+    if (!video) {
+        return;
+    }
+
+    let playPromise;
+
+    try {
+        playPromise = video.play();
+    } catch (error) {
+        console.warn("[CricZone Player] Autoplay blocked; waiting for user interaction.", error);
+        showAutoplayHint();
+        return;
+    }
+
+    if (!playPromise || typeof playPromise.catch !== "function") {
+        return;
+    }
+
+    playPromise.catch(error => {
+        console.warn("[CricZone Player] Autoplay blocked; waiting for user interaction.", error);
+        showAutoplayHint();
+    });
+}
+
+function showAutoplayHint() {
+    if (art && art.notice) {
+        art.notice.show = "Press Play to start";
+    }
+}
+
+
+/* =========================================================
    DESTROY PLAYERS
 ========================================================= */
 
@@ -1397,16 +1442,7 @@ async function initArtPlayer(
                                 Hls.Events.MANIFEST_PARSED,
                                 function() {
 
-                                    video.play()
-                                        .catch(
-                                            () => {
-
-                                                tryNextServer(
-                                                    "Autoplay blocked/failed"
-                                                );
-
-                                            }
-                                        );
+                                    attemptAutoplay(video);
 
 
                                     if (
@@ -1652,16 +1688,7 @@ async function initArtPlayer(
                             );
 
 
-                            video.play()
-                                .catch(
-                                    () => {
-
-                                        tryNextServer(
-                                            "Autoplay failed"
-                                        );
-
-                                    }
-                                );
+                            attemptAutoplay(video);
 
 
                             const tracks =
