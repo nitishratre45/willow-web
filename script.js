@@ -11,6 +11,10 @@ let isSwitchingServer = false;
 
 let currentMatchId = null;
 let matchesRefreshTimer = null;
+let playbackWatchdog = null;
+let lastPlaybackTime = 0;
+let lastPlaybackProgressAt = 0;
+let watchdogRecoveryAttempts = 0;
 
 const MATCH_REFRESH_TIME = 30000;
 
@@ -1327,6 +1331,14 @@ function showAutoplayHint() {
 
 async function destroyPlayers() {
 
+    if (playbackWatchdog) {
+        clearInterval(playbackWatchdog);
+        playbackWatchdog = null;
+    }
+    lastPlaybackTime = 0;
+    lastPlaybackProgressAt = 0;
+    watchdogRecoveryAttempts = 0;
+
     if (art) {
 
         try {
@@ -2011,6 +2023,60 @@ async function initArtPlayer(
 
         }
     );
+
+    // Detect frozen video even when the stream library emits no fatal error.
+    const watchdogVideo = art.video;
+    if (watchdogVideo) {
+        lastPlaybackTime = watchdogVideo.currentTime || 0;
+        lastPlaybackProgressAt = Date.now();
+
+        playbackWatchdog = setInterval(() => {
+            if (!watchdogVideo.isConnected || watchdogVideo.paused || watchdogVideo.ended) {
+                return;
+            }
+
+            const now = Date.now();
+            const time = watchdogVideo.currentTime || 0;
+            if (Math.abs(time - lastPlaybackTime) > 0.15) {
+                lastPlaybackTime = time;
+                lastPlaybackProgressAt = now;
+                watchdogRecoveryAttempts = 0;
+                return;
+            }
+
+            if (now - lastPlaybackProgressAt < 15000 || isSwitchingServer) {
+                return;
+            }
+
+            lastPlaybackProgressAt = now;
+            watchdogRecoveryAttempts++;
+            if (art && art.notice) {
+                art.notice.show = "Live playback stalled — reconnecting…";
+            }
+
+            if (watchdogRecoveryAttempts === 1) {
+                if (activeHls) {
+                    try {
+                        activeHls.startLoad();
+                        return;
+                    } catch (error) {
+                        console.warn("[CricZone Player] HLS stall recovery failed.", error);
+                    }
+                }
+
+                if (shakaPlayer) {
+                    try {
+                        shakaPlayer.retryStreaming(0.5);
+                        return;
+                    } catch (error) {
+                        console.warn("[CricZone Player] Shaka stall recovery failed.", error);
+                    }
+                }
+            }
+
+            tryNextServer("Live playback stalled for 15+ seconds");
+        }, 5000);
+    }
 
 }
 
