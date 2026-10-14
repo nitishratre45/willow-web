@@ -1790,11 +1790,15 @@ async function initArtPlayer(
                                         art.notice.show = "Stream interrupted — reconnecting…";
                                     }
 
-                                    const retryStarted = player.retryStreaming(0.5);
                                     console.warn("[CricZone Player] DASH recovery attempt", shakaRecoveryAttempts, event.detail || event);
 
-                                    if (retryStarted) {
+                                    // Shaka retryStreaming() does not return a success boolean.
+                                    // Return after requesting recovery; do not switch servers immediately.
+                                    try {
+                                        player.retryStreaming(0.5);
                                         return;
+                                    } catch (retryError) {
+                                        console.warn("[CricZone Player] DASH in-place retry failed.", retryError);
                                     }
                                 }
 
