@@ -1415,11 +1415,39 @@ async function initArtPlayer(
                                     enableWorker:
                                         true,
 
+                                    // Prefer a stable live buffer over ultra-low latency.
                                     lowLatencyMode:
-                                        true,
+                                        false,
 
                                     backBufferLength:
-                                        30
+                                        60,
+
+                                    maxBufferLength:
+                                        30,
+
+                                    maxMaxBufferLength:
+                                        60,
+
+                                    maxBufferHole:
+                                        0.5,
+
+                                    manifestLoadingTimeOut:
+                                        20000,
+
+                                    levelLoadingTimeOut:
+                                        20000,
+
+                                    fragLoadingTimeOut:
+                                        20000,
+
+                                    manifestLoadingMaxRetry:
+                                        4,
+
+                                    levelLoadingMaxRetry:
+                                        4,
+
+                                    fragLoadingMaxRetry:
+                                        4
 
                                 });
 
@@ -1599,33 +1627,37 @@ async function initArtPlayer(
 
                             streaming: {
 
+                                // A larger forward buffer helps recover from short bandwidth dips.
                                 rebufferingGoal:
-                                    2,
+                                    5,
 
                                 bufferingGoal:
-                                    10,
+                                    30,
 
                                 bufferBehind:
-                                    15,
+                                    30,
 
                                 retryParameters: {
 
                                     maxAttempts:
-                                        3,
+                                        5,
 
                                     baseDelay:
                                         1000,
 
                                     backoffFactor:
-                                        2
+                                        2,
+
+                                    fuzzFactor:
+                                        0.5
 
                                 },
 
                                 lowLatencyMode:
-                                    true,
+                                    false,
 
                                 autoLowLatencyMode:
-                                    true
+                                    false
 
                             }
 
