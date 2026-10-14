@@ -2006,6 +2006,17 @@ function showHome() {
         navActions.innerHTML = `
 
             <button
+                class="mobile-menu-btn"
+                type="button"
+                onclick="toggleMobileMenu()"
+                aria-label="Open navigation menu"
+                aria-controls="primary-nav"
+                aria-expanded="false"
+            >
+                <i class="fa-solid fa-bars" aria-hidden="true"></i>
+            </button>
+
+            <button
                 class="search-btn"
                 type="button"
                 onclick="focusSearch()"
@@ -2183,6 +2194,39 @@ function closeTelegramModalAlt() {
    TELEGRAM BACKDROP + ESC
 ========================================================= */
 
+function toggleMobileMenu() {
+    const nav = document.getElementById("primary-nav");
+    const button = document.querySelector(".mobile-menu-btn");
+    if (!nav || !button) return;
+
+    const isOpen = nav.classList.toggle("mobile-open");
+    button.setAttribute("aria-expanded", String(isOpen));
+    button.setAttribute("aria-label", isOpen ? "Close navigation menu" : "Open navigation menu");
+
+    const icon = button.querySelector("i");
+    if (icon) {
+        icon.classList.toggle("fa-bars", !isOpen);
+        icon.classList.toggle("fa-xmark", isOpen);
+    }
+}
+
+function closeMobileMenu() {
+    const nav = document.getElementById("primary-nav");
+    const button = document.querySelector(".mobile-menu-btn");
+    if (nav) nav.classList.remove("mobile-open");
+
+    if (button) {
+        button.setAttribute("aria-expanded", "false");
+        button.setAttribute("aria-label", "Open navigation menu");
+        const icon = button.querySelector("i");
+        if (icon) {
+            icon.classList.add("fa-bars");
+            icon.classList.remove("fa-xmark");
+        }
+    }
+}
+
+
 function setupTelegramEvents() {
 
     const modal1 =
@@ -2247,6 +2291,7 @@ function setupTelegramEvents() {
 
                 closeTelegramModal();
                 closeTelegramModalAlt();
+                closeMobileMenu();
 
             }
 
